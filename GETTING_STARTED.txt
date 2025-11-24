@@ -1,0 +1,246 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║              MULTIPLAYER JAYLIB GAME - GETTING STARTED GUIDE              ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+🎯 YOUR GOAL: Run a multiplayer game with server + 2+ clients
+
+═══════════════════════════════════════════════════════════════════════════
+
+STEP 1: Build the Project
+────────────────────────────────────────────────────────────────────────────
+
+Run this command once:
+
+    cd /home/kai/dev/Jaylib101
+    ./gradlew build
+
+Expected output: BUILD SUCCESSFUL ✅
+
+═══════════════════════════════════════════════════════════════════════════
+
+STEP 2: Open 3 Terminal Windows
+────────────────────────────────────────────────────────────────────────────
+
+You need:
+  - Terminal 1 → Server
+  - Terminal 2 → Client 1  
+  - Terminal 3 → Client 2
+
+In each terminal, navigate to:
+    cd /home/kai/dev/Jaylib101
+
+═══════════════════════════════════════════════════════════════════════════
+
+STEP 3: Start the Server (Terminal 1)
+────────────────────────────────────────────────────────────────────────────
+
+In Terminal 1, run:
+
+    ./gradlew run --main-class com.kaiounet.GameServerApp
+
+Wait for output:
+    > Server started on port 5555
+    > Waiting for clients...
+
+✓ Keep this running!
+
+═══════════════════════════════════════════════════════════════════════════
+
+STEP 4: Start Client 1 (Terminal 2)
+────────────────────────────────────────────────────────────────────────────
+
+In Terminal 2, run:
+
+    ./gradlew run --main-class com.kaiounet.GameClientApp
+
+Wait for:
+    - Console: "Connected to server at localhost:5555"
+    - Game window opens showing your colored square
+
+You'll see:
+    - A 1200x800 window
+    - A colored square (your player)
+    - Text showing "Players: 1" and "Your ID: 1"
+
+✓ Try moving with arrow keys or WASD!
+
+═══════════════════════════════════════════════════════════════════════════
+
+STEP 5: Start Client 2 (Terminal 3)
+────────────────────────────────────────────────────────────────────────────
+
+In Terminal 3, run:
+
+    ./gradlew run --main-class com.kaiounet.GameClientApp
+
+Now you should see:
+    - Terminal 1: "New client connected: 2"
+    - Client 1 window: Now shows "Players: 2"
+    - Client 2 window: Shows your colored square (different color)
+
+✓ Move around in Client 2 and watch Client 1 see your movement!
+
+═══════════════════════════════════════════════════════════════════════════
+
+STEP 6: Add More Clients (Optional - Terminal 4+)
+────────────────────────────────────────────────────────────────────────────
+
+Run the same command in more terminals:
+
+    ./gradlew run --main-class com.kaiounet.GameClientApp
+
+Each new client:
+    - Gets a unique ID
+    - Gets a unique color
+    - Appears to all other clients
+    - Updates appear in real-time
+
+═══════════════════════════════════════════════════════════════════════════
+
+GAME CONTROLS
+────────────────────────────────────────────────────────────────────────────
+
+Movement:
+    ↑ / W  = Move up
+    ↓ / S  = Move down
+    ← / A  = Move left
+    → / D  = Move right
+
+Disconnect:
+    Close the window to disconnect
+
+═══════════════════════════════════════════════════════════════════════════
+
+WHAT'S HAPPENING BEHIND THE SCENES
+────────────────────────────────────────────────────────────────────────────
+
+1. Server accepts connections on port 5555
+2. Each client connects and gets a unique ID + color
+3. Client 1 tells server where it is 60 times per second
+4. Server broadcasts all positions to all clients
+5. All clients render all players in real-time
+
+It's like this:
+
+    Client 1 ─┐
+    Client 2 ─┼──> Server ──> Broadcasts to all clients ──> Everyone updates
+    Client 3 ─┘
+
+═══════════════════════════════════════════════════════════════════════════
+
+COLORS ASSIGNED
+────────────────────────────────────────────────────────────────────────────
+
+Player 1: RED
+Player 2: GREEN
+Player 3: BLUE
+Player 4: YELLOW
+Player 5: MAGENTA
+Player 6: ORANGE
+(and then repeats...)
+
+═══════════════════════════════════════════════════════════════════════════
+
+TROUBLESHOOTING
+────────────────────────────────────────────────────────────────────────────
+
+❌ "Connection refused" error in client
+   → Start the SERVER FIRST before any clients
+
+❌ "Port 5555 already in use"
+   → Either:
+      a) Wait a minute (port takes time to free up)
+      b) Kill the old server process
+      c) Change port in GameServerApp.java
+
+❌ No window appears when running client
+   → You need a display server (X11/Wayland)
+   → On WSL2: setup X11 forwarding or use VNC
+
+❌ Player not moving
+   → Check network output in Terminal 1
+   → Verify firewall allows port 5555
+
+❌ Game lags/stutters
+   → Normal if you have a slow network
+   → Try on local network (not internet)
+
+═══════════════════════════════════════════════════════════════════════════
+
+NEXT STEPS - LEARN THE CODE
+────────────────────────────────────────────────────────────────────────────
+
+Now that it's running, read the documentation:
+
+   1. QUICKSTART.md ..................... 5-minute overview
+   2. README_MULTIPLAYER.md ............ Project structure
+   3. ARCHITECTURE.md .................. How it all works
+   4. REFERENCE.md ..................... Quick command reference
+   5. STRUCTURE_SUMMARY.txt ............ Code structure
+
+═══════════════════════════════════════════════════════════════════════════
+
+EXTEND THE GAME - SIMPLE IDEAS
+────────────────────────────────────────────────────────────────────────────
+
+Try adding these features:
+
+✓ SCORE SYSTEM
+  - Add a score field to Player.java
+  - Display score in MultiplayerGame.render()
+  - Update score in processNetworkMessages()
+
+✓ CHAT SYSTEM
+  - Add CHAT_MESSAGE to GameMessage.MessageType
+  - Draw chat messages on screen
+
+✓ COLLISION DETECTION
+  - Check if players touch in MultiplayerGame.update()
+  - Make them bounce off each other
+
+✓ ITEMS
+  - Create an Item class like Player
+  - Server spawns items at random positions
+  - Clients collect them
+
+✓ HEALTH/DAMAGE
+  - Add health to Player
+  - Create attack message type
+  - Handle collisions as damage
+
+═══════════════════════════════════════════════════════════════════════════
+
+FILES YOU'LL EDIT TO CUSTOMIZE
+────────────────────────────────────────────────────────────────────────────
+
+To change:                          Edit:
+────────────────────────────────────────────────────────────────────────────
+Game speed (FPS)                    MultiplayerGame.java
+Movement speed                      MultiplayerGame.java → moveSpeed
+Window size                         MultiplayerGame.java → width/height
+Network port                        GameServerApp.java
+Player colors                       GameServer.java → getPlayerColor()
+Add new message types               GameMessage.java → MessageType enum
+Server logic                        GameServer.java → broadcastMessage()
+Client rendering                    MultiplayerGame.java → render()
+
+═══════════════════════════════════════════════════════════════════════════
+
+YOU'RE READY! 🚀
+────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  ✅ Code is built and tested
+  ✅ Server is ready to run
+  ✅ Client is ready to run
+  ✅ Documentation is complete
+  ✅ Everything works!
+
+Next action:
+  Open 3 terminals and follow STEP 1-5 above
+
+Questions? Check the documentation files or REFERENCE.md
+
+Good luck! 🎮
+
+═══════════════════════════════════════════════════════════════════════════

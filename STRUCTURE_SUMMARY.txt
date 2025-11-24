@@ -1,0 +1,147 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║            MULTIPLAYER JAYLIB GAME - CODE STRUCTURE SUMMARY               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📦 CORE FILES (7 Java classes)
+
+1. ENTRY POINTS
+   ├── GameServerApp.java (38 lines)
+   │   └── main() → start GameServer on port 5555
+   │
+   └── GameClientApp.java (25 lines)
+       └── main() → connect to server, run MultiplayerGame
+
+2. NETWORK LAYER
+   ├── GameServer.java (183 lines)
+   │   ├── start() → listen for connections
+   │   ├── broadcastMessage() → send to all clients
+   │   └── ClientHandler (inner class) → per-client thread
+   │
+   └── GameClient.java (90 lines)
+       ├── connect() → TCP to server
+       ├── sendMessage() → async send
+       └── listenForMessages() → background thread
+
+3. DATA MODELS
+   ├── GameMessage.java (26 lines)
+   │   └── types: PLAYER_JOIN, PLAYER_MOVE, PLAYER_LEAVE
+   │
+   └── Player.java (24 lines)
+       └── id, x, y, color, SIZE=30
+
+4. GAME LOGIC
+   └── MultiplayerGame.java (155 lines)
+       ├── update() → network + input + movement
+       ├── processNetworkMessages() → parse incoming
+       └── render() → Jaylib drawing
+
+📊 TOTAL: ~540 lines of actual code (excluding comments/blanks)
+
+═══════════════════════════════════════════════════════════════════════════
+
+🎯 COMMUNICATION FLOW
+
+   Client 1                  Server                  Client 2
+   ────────                  ──────                  ────────
+     │                         │                       │
+     │── CONNECT ─────────────►│                       │
+     │                         │                       │
+     │◄────── PLAYER_JOIN ─────│                       │
+     │                         │── PLAYER_JOIN ───────►│
+     │                         │◄─── ACK ──────────────│
+     │                         │                       │
+     │── CONNECT ─────────────►│                       │
+     │                         │── PLAYER_JOIN ───────►│
+     │◄────── PLAYER_JOIN ─────│                       │
+     │                         │                       │
+   [MOVE] ──PLAYER_MOVE ─────►│                       │
+     │                         │─ PLAYER_MOVE ───────►│
+     │                         │                       │
+     │◄─── PLAYER_MOVE ────────│◄─ PLAYER_MOVE ────────│
+     │                         │                       │
+   [MOVE] ──PLAYER_MOVE ─────►│─ PLAYER_MOVE ───────►│
+     │                         │                       │
+     X [DISCONNECT]           │── PLAYER_LEAVE ──────►│
+     │                         │                       │
+
+═══════════════════════════════════════════════════════════════════════════
+
+🎮 CLIENT-SIDE GAME LOOP (60 FPS)
+
+    while (!WindowShouldClose) {
+        // 1. NETWORK - Process received messages
+        while (hasMessages) {
+            msg = pollMessage()
+            case PLAYER_JOIN:
+                players.put(msg.playerId, new Player(...))
+            case PLAYER_MOVE:
+                players.get(msg.playerId).move(msg.x, msg.y)
+            case PLAYER_LEAVE:
+                players.remove(msg.playerId)
+        }
+        
+        // 2. INPUT - Handle local player movement
+        dx = dy = 0
+        if (KEY_LEFT || KEY_A):  dx = -5
+        if (KEY_RIGHT || KEY_D): dx = +5
+        if (KEY_UP || KEY_W):    dy = -5
+        if (KEY_DOWN || KEY_S):  dy = +5
+        
+        if (dx != 0 || dy != 0):
+            newX = clamp(localPlayer.x + dx, 0, WIDTH)
+            newY = clamp(localPlayer.y + dy, 0, HEIGHT)
+            
+            // 3. SEND - Broadcast to all players
+            msg = PLAYER_MOVE(playerId, newX, newY)
+            client.sendMessage(msg)  // async background thread
+            
+            localPlayer.move(newX, newY)
+        
+        // 4. RENDER - Draw everything
+        BeginDrawing()
+        ClearBackground(DARKGRAY)
+        
+        for each player in players:
+            DrawRectangle(player.x, player.y, SIZE, SIZE, player.color)
+            DrawText("P" + player.id, ...)
+        
+        DrawText("Players: " + players.size(), ...)
+        EndDrawing()
+    }
+
+═══════════════════════════════════════════════════════════════════════════
+
+🔧 QUICK MODIFICATIONS
+
+Change movement speed:
+  MultiplayerGame.java → moveSpeed = 10  (default: 5)
+
+Change window size:
+  MultiplayerGame.java → width/height = 1600/1000
+
+Add new player color:
+  GameServer.java → getPlayerColor() colors array
+
+Change server port:
+  GameServerApp.main() → new GameServer(9999)
+
+Add more message types:
+  GameMessage.java → enum MessageType { ..., NEW_TYPE }
+  GameServer.java → case NEW_TYPE: handle it
+  GameClient.java → case NEW_TYPE: queue it
+  MultiplayerGame.java → case NEW_TYPE: process it
+
+═══════════════════════════════════════════════════════════════════════════
+
+📁 BUILD & RUN
+
+Build:
+  ./gradlew build
+
+Run Server:
+  ./gradlew run --main-class com.kaiounet.GameServerApp
+
+Run Client:
+  ./gradlew run --main-class com.kaiounet.GameClientApp
+
+═══════════════════════════════════════════════════════════════════════════
