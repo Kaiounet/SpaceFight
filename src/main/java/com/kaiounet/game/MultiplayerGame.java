@@ -1,6 +1,7 @@
 package com.kaiounet.game;
 
 import com.kaiounet.network.*;
+import com.kaiounet.ui.UIRenderer;
 import static com.raylib.Colors.*;
 import static com.raylib.Raylib.*;
 import com.raylib.Raylib.Color;
@@ -8,6 +9,7 @@ import java.util.*;
 
 public class MultiplayerGame {
     private final GameClient client;
+    private final UIRenderer uiRenderer;
     private final int width = 1200;
     private final int height = 800;
     private final Map<Integer, Player> players = new HashMap<>();
@@ -21,6 +23,7 @@ public class MultiplayerGame {
     
     public MultiplayerGame(GameClient client) {
         this.client = client;
+        this.uiRenderer = new UIRenderer();
     }
     
     public void initialize() {
@@ -160,6 +163,9 @@ public class MultiplayerGame {
                     beam.deactivate();
                     beamsToRemove.add(beam.id);
                     
+                    // Add visual feedback - damage number
+                    uiRenderer.addDamageNumber(player.x + Player.SIZE / 2, player.y - 20, Beam.DAMAGE);
+                    
                     Player shooter = players.get(beam.shooterId);
                     
                     // If player died, credit shooter BEFORE sending messages
@@ -168,6 +174,8 @@ public class MultiplayerGame {
                         if (shooter != null) {
                             shooter.addScore(1);
                             System.out.println("DEATH: Shooter " + shooter.id + " score now: " + shooter.score);
+                            // Add kill message feedback
+                            uiRenderer.addKillMessage("P" + shooter.id, "P" + player.id, shooter.score);
                         }
                     }
                     
@@ -309,60 +317,40 @@ public class MultiplayerGame {
                 rayColor
             );
             
-            // Draw health bar above player
-            int healthBarWidth = 30;
-            DrawRectangleLines((int) player.x - 5, (int) player.y - 25, healthBarWidth, 8, WHITE);
-            int healthFill = (int) (healthBarWidth * player.health / Player.MAX_HEALTH);
-            Color healthColor = player.health > 50 ? GREEN : (player.health > 25 ? YELLOW : RED);
-            DrawRectangle((int) player.x - 5, (int) player.y - 25, healthFill, 8, healthColor);
+            // Draw improved health bar
+            uiRenderer.drawHealthBar(player);
             
             // Draw player ID
             DrawText(
                 "P" + player.id,
                 (int) player.x + 5,
-                (int) player.y - 40,
+                (int) player.y - 50,
                 12,
                 WHITE
             );
         }
         
-        // Draw scoreboard
-        drawScoreboard();
+        // Draw improved scoreboard
+        uiRenderer.drawScoreboard(players, localPlayerId, width, height);
         
-        // Draw UI
-        DrawText("Arrow Keys/WASD: Move | SPACE: Shoot | Mouse: Aim", 10, 10, 14, WHITE);
-        DrawText("Players: " + players.size(), 10, 35, 14, WHITE);
+        // Draw info panel
+        uiRenderer.drawInfoPanel(players.size());
         
+        // Draw local player HUD
         if (localPlayerId >= 0 && localPlayer != null) {
-            DrawText("Your ID: " + localPlayerId, 10, 60, 14, YELLOW);
-            DrawText("Health: " + localPlayer.health + "/" + Player.MAX_HEALTH, 10, 85, 14, 
-                localPlayer.health > 50 ? GREEN : (localPlayer.health > 25 ? YELLOW : RED));
+            uiRenderer.drawPlayerHUD(localPlayer, localPlayerId, height);
         }
+        
+        // Update and draw feedback effects
+        uiRenderer.updateAndDrawDamageNumbers();
+        uiRenderer.updateAndDrawKillMessages(height);
         
         DrawFPS(width - 100, 10);
         EndDrawing();
     }
     
     private void drawScoreboard() {
-        int scoreboardX = width - 250;
-        int scoreboardY = 50;
-        int entryHeight = 25;
-        
-        DrawRectangle(scoreboardX - 10, scoreboardY - 25, 240, 20 + players.size() * entryHeight, 
-            Fade(BLACK, 0.5f));
-        DrawText("SCOREBOARD", scoreboardX, scoreboardY - 20, 16, YELLOW);
-        
-        // Sort players by score (descending)
-        List<Player> sortedPlayers = new ArrayList<>(players.values());
-        sortedPlayers.sort((a, b) -> Integer.compare(b.score, a.score));
-        
-        int yOffset = 0;
-        for (Player player : sortedPlayers) {
-            String text = String.format("P%d: %3d kills", player.id, player.score);
-            Color textColor = (player.id == localPlayerId) ? YELLOW : WHITE;
-            DrawText(text, scoreboardX, scoreboardY + yOffset, 14, textColor);
-            yOffset += entryHeight;
-        }
+        // This method is no longer used - functionality moved to UIRenderer
     }
     
     private Color createColorFromInt(int colorInt) {
