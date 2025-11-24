@@ -10,10 +10,24 @@ public class GameServer {
     private final int port;
     private ServerSocket serverSocket;
     private final Map<Integer, ClientHandler> clients = new ConcurrentHashMap<>();
-    private final Map<Integer, float[]> playerPositions = new ConcurrentHashMap<>();
+    private final Map<Integer, PlayerState> playerStates = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private int nextPlayerId = 1;
     private volatile boolean running = true;
+    
+    private static class PlayerState {
+        int health;
+        int score;
+        float x;
+        float y;
+        
+        PlayerState(float x, float y, int health, int score) {
+            this.x = x;
+            this.y = y;
+            this.health = health;
+            this.score = score;
+        }
+    }
     
     public GameServer(int port) {
         this.port = port;
@@ -28,7 +42,7 @@ public class GameServer {
                 try {
                     Socket clientSocket = serverSocket.accept();
                     int playerId = nextPlayerId++;
-                    System.out.println("New client connected with ID: " + playerId + " (nextPlayerId now: " + nextPlayerId + ")");
+                    System.out.println("New client connected with ID: " + playerId);
                     
                     ClientHandler handler = new ClientHandler(playerId, clientSocket, this);
                     clients.put(playerId, handler);
@@ -42,9 +56,9 @@ public class GameServer {
     }
     
     public void broadcastMessage(GameMessage message) {
-        // Track player positions for new joiners
+        // Track player state for new joiners
         if (message.type == GameMessage.MessageType.PLAYER_MOVE) {
-            playerPositions.put(message.playerId, new float[]{message.x, message.y});
+            playerStates.put(message.playerId, new PlayerState(message.x, message.y, message.health, message.score));
         }
         
         for (ClientHandler handler : clients.values()) {
@@ -53,9 +67,9 @@ public class GameServer {
     }
     
     public void broadcastMessageExcept(GameMessage message, int excludePlayerId) {
-        // Track player positions for new joiners
+        // Track player state for new joiners
         if (message.type == GameMessage.MessageType.PLAYER_MOVE) {
-            playerPositions.put(message.playerId, new float[]{message.x, message.y});
+            playerStates.put(message.playerId, new PlayerState(message.x, message.y, message.health, message.score));
         }
         
         for (ClientHandler handler : clients.values()) {
@@ -78,7 +92,7 @@ public class GameServer {
     
     public void removeClient(int playerId) {
         clients.remove(playerId);
-        playerPositions.remove(playerId);
+        playerStates.remove(playerId);
         broadcastMessage(new GameMessage(
             GameMessage.MessageType.PLAYER_LEAVE,
             playerId, 0, 0, 0
@@ -124,57 +138,85 @@ public class GameServer {
                 out.flush();
                 in = new ObjectInputStream(socket.getInputStream());
                 
-                // FIRST: Send THIS PLAYER its own ID (so it sets localPlayerId correctly)
                 float startX = 100 + (playerId * 50);
                 float startY = 100 + (playerId * 50);
-                server.playerPositions.put(playerId, new float[]{startX, startY});
+                server.playerStates.put(playerId, new PlayerState(startX, startY, 100, 0));
                 
-                System.out.println("Sending player " + playerId + " its own ID assignment: (" + startX + "," + startY + ")");
+                // Send this player its own ID
                 sendMessage(new GameMessage(
                     GameMessage.MessageType.PLAYER_JOIN,
                     playerId,
                     startX,
                     startY,
-                    server.getPlayerColor(playerId)
+                    server.getPlayerColor(playerId),
+                    100,
+                    0
                 ));
                 
-                // THEN: Send all OTHER existing players to this new player with their CURRENT positions
+                // Send all OTHER existing players to this new player
                 for (ClientHandler existingHandler : server.getClients().values()) {
                     if (existingHandler.playerId != this.playerId) {
-                        // Get current position or use default
-                        float[] pos = server.playerPositions.get(existingHandler.playerId);
-                        float x = (pos != null) ? pos[0] : (100 + existingHandler.playerId * 50);
-                        float y = (pos != null) ? pos[1] : (100 + existingHandler.playerId * 50);
+                        PlayerState state = server.playerStates.get(existingHandler.playerId);
+                        float x = (state != null) ? state.x : (100 + existingHandler.playerId * 50);
+                        float y = (state != null) ? state.y : (100 + existingHandler.playerId * 50);
+                        int health = (state != null) ? state.health : 100;
+                        int score = (state != null) ? state.score : 0;
                         
-                        // Send the existing player's join message to this new player
-                        System.out.println("Sending player " + playerId + " info about existing player " + existingHandler.playerId + " at (" + x + "," + y + ")");
                         sendMessage(new GameMessage(
                             GameMessage.MessageType.PLAYER_JOIN,
                             existingHandler.playerId,
                             x,
                             y,
-                            server.getPlayerColor(existingHandler.playerId)
+                            server.getPlayerColor(existingHandler.playerId),
+                            health,
+                            score
                         ));
                     }
                 }
                 
-                // FINALLY: Broadcast to OTHERS that this player joined (don't send to the new player again)
-                System.out.println("Broadcasting PLAYER_JOIN for ID " + playerId + " to all other clients");
+                // Broadcast to others that this player joined
                 server.broadcastMessageExcept(new GameMessage(
                     GameMessage.MessageType.PLAYER_JOIN,
                     playerId,
                     startX,
                     startY,
-                    server.getPlayerColor(playerId)
+                    server.getPlayerColor(playerId),
+                    100,
+                    0
                 ), playerId);
                 
                 while (true) {
                     try {
                         GameMessage message = (GameMessage) in.readObject();
                         
-                        if (message.type == GameMessage.MessageType.PLAYER_MOVE) {
-                            message.playerId = playerId; // Ensure correct ID
-                            server.broadcastMessage(message);
+                        switch (message.type) {
+                            case PLAYER_MOVE:
+                                message.playerId = playerId;
+                                server.broadcastMessage(message);
+                                break;
+                            
+                            case BEAM_FIRE:
+                                message.playerId = playerId;
+                                server.broadcastMessageExcept(message, playerId);
+                                break;
+                            
+                            case PLAYER_HIT:
+                                message.playerId = playerId;
+                                server.broadcastMessage(message);
+                                break;
+                            
+                            case PLAYER_RESPAWN:
+                                // IMPORTANT: Don't overwrite playerId for PLAYER_RESPAWN!
+                                // playerId contains the ID of the respawned player
+                                PlayerState state = server.playerStates.get(message.playerId);
+                                if (state != null) {
+                                    state.health = 100;
+                                }
+                                server.broadcastMessage(message);
+                                break;
+                            
+                            default:
+                                break;
                         }
                     } catch (EOFException e) {
                         break;
@@ -207,7 +249,6 @@ public class GameServer {
         server.start();
         System.out.println("Server is running. Press Ctrl+C to stop.");
         
-        // Keep server running
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Shutting down server...");
             server.stop();
