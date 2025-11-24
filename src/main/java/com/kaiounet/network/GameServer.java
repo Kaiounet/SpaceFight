@@ -7,6 +7,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class GameServer {
+    private final String host;
     private final int port;
     private ServerSocket serverSocket;
     private final Map<Integer, ClientHandler> clients = new ConcurrentHashMap<>();
@@ -30,12 +31,19 @@ public class GameServer {
     }
     
     public GameServer(int port) {
+        this("0.0.0.0", port);
+    }
+    
+    public GameServer(String host, int port) {
+        this.host = host;
         this.port = port;
     }
     
     public void start() throws IOException {
-        serverSocket = new ServerSocket(port);
-        System.out.println("Server started on port " + port);
+        // Bind to specific host/port
+        InetSocketAddress address = new InetSocketAddress(host, port);
+        serverSocket = new ServerSocket();
+        serverSocket.bind(address);
         
         executor.execute(() -> {
             while (running) {
